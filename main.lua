@@ -3,7 +3,7 @@
 -- desc:   version 1.0 beta
 -- script: lua
 
--- github: todo
+-- github: https://github.com/hanamileh-DEV/Ara_ara_engine
 
 --we kindly ask you to specify the name of this engine if you use it for your projects
 
@@ -66,7 +66,7 @@ do
 		if type(b) == "number" then b = vec3(b) end
 
 		if a[1] then a, b = b, a end
-		-- if matrix
+		-- multiplying by the matrix
 		if b[1] then
 			local x = b[1][1]*a.x + b[1][2]*a.y + b[1][3]*a.z + b[1][4]
 			local y = b[2][1]*a.x + b[2][2]*a.y + b[2][3]*a.z + b[2][4]
@@ -134,8 +134,12 @@ end
 local matMt = {} -- matrix metatable
 
 function matMt.__mul(m1, m2)
-	-- I really apologize for this kind of code,
-	-- but it's noticeably faster without loops
+	-- This code may seem quite terrible (it is)
+	-- But its main goal is to get the maximum
+	-- performance by reducing the quantity
+	-- Requests to tables, as well as no cycles.
+	-- In fact, this is a standard algorithm
+	-- for multiplying matrices.
 
 	local a1,a2,a3,a4 = m1[1],m1[2],m1[3],m1[4]
 	local b1,b2,b3,b4 = m2[1],m2[2],m2[3],m2[4]
@@ -164,6 +168,7 @@ end
 -- but if so, let me know!
 
 matrix = {
+	-- Creating a new matrix (specified in the form of a table or a default matrix)
 	new = function(mat)
 		mat = mat or {
 			{1, 0, 0, 0},
@@ -177,6 +182,7 @@ matrix = {
 		return mat
 	end,
 
+	-- Rotation matrices along each axis
 	rotationX = function(angle)
 		local cosA = math.cos(angle)
 		local sinA = math.sin(angle)
@@ -210,6 +216,7 @@ matrix = {
 		})
 	end,
 
+	-- rotation using quatternions
 	quatRotation = function(x, y, z, w)
 		local len = math.sqrt(x*x + y*y + z*z + w*w)
 
@@ -229,6 +236,7 @@ matrix = {
 		})
 	end,
 
+	-- Translation matrix (an argument can be either a vector or 3 numbers)
 	translation = function(posX, posY, posZ)
 		if type(posX) ~= "number" then
 			posX, posY, posZ = posX.x, posX.y, posX.z
@@ -242,6 +250,11 @@ matrix = {
 		})
 	end,
 
+	-- Scaling matrix
+	-- Scaling scales in each direction
+	-- if the argument is a vector, or 3 numbers,
+	-- otherwise if it is 1 number,
+	-- it scales equally in all directions
 	scale = function(scaleX, scaleY, scaleZ)
 		if type(scaleX) ~= "number" then
 			scaleX, scaleY, scaleZ = scaleX.x, scaleX.y, scaleX.z
@@ -257,6 +270,7 @@ matrix = {
 		})
 	end,
 
+	-- Projection matrix
 	projection = function()
 		local tg = math.tan(math.rad(Ara.camera.fov/2))
 
@@ -268,7 +282,7 @@ matrix = {
 		})
 	end,
 
-	-- Creating a ready-made camera matrix
+	-- Ready-made camera matrix
 	camera = function(pitch, yaw, roll, pos)
 		pitch = pitch or Ara.camera.pitch
 		yaw   = yaw   or Ara.camera.yaw
@@ -293,10 +307,13 @@ Ara = {
 	version = "1.0 beta",
 
 	camera = {
+		-- The vertical viewing angle of the camera
 		fov = 120,
 
+		-- The near cutting plane (must be strictly greater than 0)
 		near = 0.1,
 
+		-- Rotation and position of the camera
 		pitch = 0,
 		yaw = math.pi/2,
 		roll = 0,
@@ -304,10 +321,12 @@ Ara = {
 		pos = vec3(),
 	},
 	
+	-- Default values
 	wireframeColorDefault = 0,
 	pointsColorDefault = 3,
 	pointsRadiusDefault = 0,
 
+	-- The final matrix of projection-View
 	matrix = matrix.new(),
 }
 
@@ -326,7 +345,8 @@ function Ara.drawSky(skyColor, groundColor, pitch)
 	rect(0, groundHeight, 240, 137-groundHeight, groundColor)
 end
 
--- note that this function does not use the world matrix by default
+-- applying a matrix to all vertices of a table
+-- (note that this function does not use the world matrix by default)
 function Ara.update(model, mat)
 	local vertices = model.v
 
@@ -342,7 +362,11 @@ function Ara.update(model, mat)
 		local w = mat[4][1]*v[1] + mat[4][2]*v[2] + mat[4][3]*v[3] + mat[4][4]
 
 		result[i] = {
-			x=x/w*120 + 120, y=-y/w*120 + 68, z=z/w, w=w,
+			x= x/w*120 + 120,
+			y=-y/w*120 + 68,
+			z= z/w,
+			w= w,
+			-- values without W-division
 			x2=x, y2=-y, z2=z
 		}
 	end
@@ -350,8 +374,10 @@ function Ara.update(model, mat)
 	return result
 end
 
+-- drawing vertices (points)
 function Ara.drawPoints(vertices, color, radius)
-	color = color or 0
+	color = color or Ara.pointsColorDefault
+	radius = radius or Ara.pointsRadiusDefault
 
 	for i = 1, #vertices do
 		local v = vertices[i]
@@ -363,7 +389,8 @@ function Ara.drawPoints(vertices, color, radius)
 	end
 end
 
-function Ara.drawFaces(vertices, faces)
+-- Drawing object surfaces
+function Ara.drawPolys(vertices, faces)
 	local near = Ara.camera.near
 
 	for i = 1, #faces do
@@ -378,11 +405,13 @@ function Ara.drawFaces(vertices, faces)
 		local triPoints=(v2.x-v1.x) * (v3.y-v1.y) - (v3.x-v1.x) * (v2.y-v1.y) > 0
 		local drawTri = (poly.f==3) or (triPoints == (poly.f==1))
 
-		local z = {v1.z2>near,v2.z2>near,v3.z2>near}
+		local z = {v1.z2>near, v2.z2>near, v3.z2>near}
 
+		-- has a bug, todo: fix
+		--[[
 		if not poly.f == 3 then
 			drawTri = (drawTri ~= (v1.z2>0) ~= (v2.z2>0) ~= (v3.z2>0))
-		end
+		end]]
 
 		if drawTri and (z[1] or z[2] or z[3]) then
 			if z[1] and z[2] and z[3] then
@@ -396,6 +425,7 @@ function Ara.drawFaces(vertices, faces)
 				)
 			else
 				-- Z-clipping
+				--(It's a pain, but the pain works)
 				v1.i = 1
 				v2.i = 2
 				v3.i = 3
@@ -480,7 +510,9 @@ function Ara.drawFaces(vertices, faces)
 	end
 end
 
+-- Drawing a wireframe object
 function Ara.drawWireframe(vertices, faces, color)
+	color = color or Ara.wireframeColorDefault
 	local near = Ara.camera.near
 
 	for i = 1, #faces do
@@ -490,7 +522,7 @@ function Ara.drawWireframe(vertices, faces, color)
 		local v2 = vertices[poly[2]]
 		local v3 = vertices[poly[3]]
 
-		local z = {v1.z2>near,v2.z2>near,v3.z2>near}
+		local z = {v1.z2>near, v2.z2>near, v3.z2>near}
 
 		if z[1] or z[2] or z[3] then
 			if z[1] and z[2] and z[3] then
@@ -590,19 +622,16 @@ function obj.new(model)
 
 		-- Rendering faces with textures
 		if faces then
-			Ara.drawFaces(processed, self.model.f)
+			Ara.drawPolys(processed, self.model.f)
 		end
 
 		-- Rendering wireframe
 		if wireframe then
-			wireframeColor = wireframeColor or Ara.wireframeColorDefault
 			Ara.drawWireframe(processed, self.model.f, wireframeColor)
 		end
 
 		-- Rendering vertices
 		if points then
-			pointsColor = pointsColor or Ara.pointsColorDefault
-			pointsRadius = pointsRadius or Ara.pointsRadiusDefault
 			Ara.drawPoints(processed, pointsColor, pointsRadius)
 		end
 	end
@@ -613,6 +642,7 @@ function obj.new(model)
 		if type(args[1]) ~= "table" then
 			pos = vec3(args[1], args[2], args[3])
 
+			-- Removing the first elements from the arguments
 			table.remove(args,1)
 			table.remove(args,1)
 			table.remove(args,1)
@@ -634,7 +664,7 @@ function obj.new(model)
 end
 
 
-local cube_model = {
+local cubeModel = {
 	v={
 		{ 1, 1, 1},
 		{ 1,-1, 1},
@@ -661,7 +691,7 @@ local cube_model = {
 	}
 }
 
-local cube = obj.new(cube_model)
+local cube = obj.new(cubeModel)
 
 local plr = {
 	speed = 0.1,
@@ -722,7 +752,7 @@ function TIC()
 
 	Ara.matrix = matrix.camera()
 
-	cube:draw()
+	cube:draw(plr.faces, plr.frame, plr.points)
 	-- Debug
 	local frame = time() - start
 
