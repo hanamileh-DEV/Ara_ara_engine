@@ -396,117 +396,118 @@ function Ara.drawPolys(vertices, faces)
 	for i = 1, #faces do
 		local poly = faces[i]
 
+		if poly.f == 0 then goto skip end
+
 		local v1 = vertices[poly[1]]
 		local v2 = vertices[poly[2]]
 		local v3 = vertices[poly[3]]
 
 		local uv = poly.uv
 
-		local triPoints=(v2.x-v1.x) * (v3.y-v1.y) - (v3.x-v1.x) * (v2.y-v1.y) > 0
-		local drawTri = (poly.f==3) or (triPoints == (poly.f==1))
+		local triPoints = (v2.x-v1.x) * (v3.y-v1.y) - (v3.x-v1.x) * (v2.y-v1.y) > 0
+		local drawTri = (poly.f==3) or (triPoints == (poly.f==2))
 
 		local z = {v1.z2>near, v2.z2>near, v3.z2>near}
 
-		-- has a bug, todo: fix
-		--[[
-		if not poly.f == 3 then
-			drawTri = (drawTri ~= (v1.z2>0) ~= (v2.z2>0) ~= (v3.z2>0))
-		end]]
+		if poly.f < 3 then
+			drawTri = drawTri ~= (v1.z2>0) ~= (v2.z2>0) ~= (v3.z2>0)
+		end
 
-		if drawTri and (z[1] or z[2] or z[3]) then
-			if z[1] and z[2] and z[3] then
-				ttri(v1.x, v1.y,
-					v2.x, v2.y,
-					v3.x, v3.y,
-					uv[1][1], uv[1][2],
-					uv[2][1], uv[2][2],
-					uv[3][1], uv[3][2], 0, uv[4],
-					v1.z2, v2.z2, v3.z2
-				)
+		if not drawTri then goto skip end
+
+		if z[1] and z[2] and z[3] then
+			ttri(v1.x, v1.y,
+				v2.x, v2.y,
+				v3.x, v3.y,
+				uv[1][1], uv[1][2],
+				uv[2][1], uv[2][2],
+				uv[3][1], uv[3][2], 0, uv[4],
+				v1.z2, v2.z2, v3.z2
+			)
+		elseif z[1] or z[2] or z[3] then
+			-- Z-clipping
+			--(It's a pain, but the pain works)
+			v1.i = 1
+			v2.i = 2
+			v3.i = 3
+
+			local v = {v1, v2, v3}
+
+			table.sort(v, function(a,b) return a.z2<b.z2 end)
+
+			local i1 = v[1].i
+			local i2 = v[2].i
+			local i3 = v[3].i
+
+			if v[2].z2>near then
+				local v4, v5 = {},{}
+				--------
+				local t = (near - v[1].z2) / (v[3].z2 - v[1].z2)
+
+				v4.x2 = lerp(v[1].x2,v[3].x2, t)
+				v4.y2 = lerp(v[1].y2,v[3].y2, t)
+
+				v4.w = near
+
+				v4.x = v4.x2/v4.w*120 + 120
+				v4.y = v4.y2/v4.w*120 + 68
+
+				v4.uv = {
+					lerp(uv[i1][1],uv[i3][1], t),
+					lerp(uv[i1][2],uv[i3][2], t)
+				}
+				--------
+				t = (near - v[1].z2) / (v[2].z2 - v[1].z2)
+
+				v5.x2 = lerp(v[1].x2,v[2].x2, t)
+				v5.y2 = lerp(v[1].y2,v[2].y2, t)
+				v5.w = near
+
+				v5.x = v5.x2/v5.w*120 + 120
+				v5.y = v5.y2/v5.w*120 + 68
+
+				v5.uv = {
+					lerp(uv[i1][1],uv[i2][1], t),
+					lerp(uv[i1][2],uv[i2][2], t)
+				}
+				--------
+				ttri(v[2].x,v[2].y,v4.x,  v4.y,  v5.x,v5.y,uv[i2][1],uv[i2][2],v4.uv[1], v4.uv[2], v5.uv[1],v5.uv[2],0,uv[4],v[2].z2,near,   near)
+				ttri(v[3].x,v[3].y,v[2].x,v[2].y,v4.x,v4.y,uv[i3][1],uv[i3][2],uv[i2][1],uv[i2][2],v4.uv[1],v4.uv[2],0,uv[4],v[3].z2,v[2].z2,near)
 			else
-				-- Z-clipping
-				--(It's a pain, but the pain works)
-				v1.i = 1
-				v2.i = 2
-				v3.i = 3
+				local v4, v5 = {},{}
+				--------
+				local t = (near - v[1].z2) / (v[3].z2 - v[1].z2)
 
-				local v = {v1, v2, v3}
+				v4.x2 = lerp(v[1].x2, v[3].x2, t)
+				v4.y2 = lerp(v[1].y2, v[3].y2, t)
+				v4.w = near
 
-				table.sort(v, function(a,b) return a.z2<b.z2 end)
+				v4.x = v4.x2/v4.w*120 + 120
+				v4.y = v4.y2/v4.w*120 + 68
+				
+				v4.uv = {
+					lerp(uv[i1][1],uv[i3][1], t),
+					lerp(uv[i1][2],uv[i3][2], t)
+				}
+				--------
+				t = (near - v[3].z2) / (v[2].z2 - v[3].z2)
 
-				local i1 = v[1].i
-				local i2 = v[2].i
-				local i3 = v[3].i
+				v5.x2 = lerp(v[3].x2, v[2].x2, t)
+				v5.y2 = lerp(v[3].y2, v[2].y2, t)
+				v5.w = near
 
-				if v[2].z2>near then
-					local v4, v5 = {},{}
-					--------
-					local t = (near - v[1].z2) / (v[3].z2 - v[1].z2)
+				v5.x = v5.x2/v5.w*120 + 120
+				v5.y = v5.y2/v5.w*120 + 68
 
-					v4.x2 = lerp(v[1].x2,v[3].x2, t)
-					v4.y2 = lerp(v[1].y2,v[3].y2, t)
-
-					v4.w = near
-
-					v4.x = v4.x2/v4.w*120 + 120
-					v4.y = v4.y2/v4.w*120 + 68
-
-					v4.uv = {
-						lerp(uv[i1][1],uv[i3][1], t),
-						lerp(uv[i1][2],uv[i3][2], t)
-					}
-					--------
-					t = (near - v[1].z2) / (v[2].z2 - v[1].z2)
-
-					v5.x2 = lerp(v[1].x2,v[2].x2, t)
-					v5.y2 = lerp(v[1].y2,v[2].y2, t)
-					v5.w = near
-
-					v5.x = v5.x2/v5.w*120 + 120
-					v5.y = v5.y2/v5.w*120 + 68
-
-					v5.uv = {
-						lerp(uv[i1][1],uv[i2][1], t),
-						lerp(uv[i1][2],uv[i2][2], t)
-					}
-					--------
-					ttri(v[2].x,v[2].y,v4.x,  v4.y,  v5.x,v5.y,uv[i2][1],uv[i2][2],v4.uv[1], v4.uv[2], v5.uv[1],v5.uv[2],0,uv[4],v[2].z2,near,   near)
-					ttri(v[3].x,v[3].y,v[2].x,v[2].y,v4.x,v4.y,uv[i3][1],uv[i3][2],uv[i2][1],uv[i2][2],v4.uv[1],v4.uv[2],0,uv[4],v[3].z2,v[2].z2,near)
-				else
-					local v4, v5 = {},{}
-					--------
-					local t = (near - v[1].z2) / (v[3].z2 - v[1].z2)
-
-					v4.x2 = lerp(v[1].x2, v[3].x2, t)
-					v4.y2 = lerp(v[1].y2, v[3].y2, t)
-					v4.w = near
-
-					v4.x = v4.x2/v4.w*120 + 120
-					v4.y = v4.y2/v4.w*120 + 68
-					
-					v4.uv = {
-						lerp(uv[i1][1],uv[i3][1], t),
-						lerp(uv[i1][2],uv[i3][2], t)
-					}
-					--------
-					t = (near - v[3].z2) / (v[2].z2 - v[3].z2)
-
-					v5.x2 = lerp(v[3].x2, v[2].x2, t)
-					v5.y2 = lerp(v[3].y2, v[2].y2, t)
-					v5.w = near
-
-					v5.x = v5.x2/v5.w*120 + 120
-					v5.y = v5.y2/v5.w*120 + 68
-
-					v5.uv = {
-						lerp(uv[i3][1],uv[i2][1], t),
-						lerp(uv[i3][2],uv[i2][2], t)
-					}
-					--------
-					ttri(v[3].x,v[3].y,v4.x,v4.y,v5.x,v5.y,uv[i3][1],uv[i3][2],v4.uv[1],v4.uv[2],v5.uv[1],v5.uv[2],0,uv[4],v[3].z2,near,near)
-				end
+				v5.uv = {
+					lerp(uv[i3][1],uv[i2][1], t),
+					lerp(uv[i3][2],uv[i2][2], t)
+				}
+				--------
+				ttri(v[3].x,v[3].y,v4.x,v4.y,v5.x,v5.y,uv[i3][1],uv[i3][2],v4.uv[1],v4.uv[2],v5.uv[1],v5.uv[2],0,uv[4],v[3].z2,near,near)
 			end
 		end
+		::skip::
 	end
 end
 
@@ -676,18 +677,18 @@ local cubeModel = {
 		{-1,-1,-1},
 	},
 	f={
-		{5,3,1,uv={{96 ,0 },{64,32},{96 ,32},-1},f=3},
-		{3,8,4,uv={{64 ,32},{32,64},{64 ,64},-1},f=3},
-		{7,6,8,uv={{128,32},{96,64},{128,64},-1},f=3},
-		{2,8,6,uv={{96 ,32},{64,64},{96 ,64},-1},f=3},
-		{1,4,2,uv={{128,0 },{96,32},{128,32},-1},f=3},
-		{5,2,6,uv={{64 ,0 },{32,32},{64 ,32},-1},f=3},
-		{5,7,3,uv={{96 ,0 },{64,0 },{64 ,32},-1},f=3},
-		{3,7,8,uv={{64 ,32},{32,32},{32 ,64},-1},f=3},
-		{7,5,6,uv={{128,32},{96,32},{96 ,64},-1},f=3},
-		{2,4,8,uv={{96 ,32},{64,32},{64 ,64},-1},f=3},
-		{1,3,4,uv={{128,0 },{96,0 },{96 ,32},-1},f=3},
-		{5,1,2,uv={{64 ,0 },{32,0 },{32 ,32},-1},f=3},
+		{5,3,1,uv={{96 ,0 },{64,32},{96 ,32},0},f=2},
+		{3,8,4,uv={{64 ,32},{32,64},{64 ,64},0},f=2},
+		{7,6,8,uv={{128,32},{96,64},{128,64},0},f=2},
+		{2,8,6,uv={{96 ,32},{64,64},{96 ,64},0},f=2},
+		{1,4,2,uv={{128,0 },{96,32},{128,32},0},f=2},
+		{5,2,6,uv={{64 ,0 },{32,32},{64 ,32},0},f=2},
+		{5,7,3,uv={{96 ,0 },{64,0 },{64 ,32},0},f=2},
+		{3,7,8,uv={{64 ,32},{32,32},{32 ,64},0},f=2},
+		{7,5,6,uv={{128,32},{96,32},{96 ,64},0},f=2},
+		{2,4,8,uv={{96 ,32},{64,32},{64 ,64},0},f=2},
+		{1,3,4,uv={{128,0 },{96,0 },{96 ,32},0},f=2},
+		{5,1,2,uv={{64 ,0 },{32,0 },{32 ,32},0},f=2},
 	}
 }
 
@@ -716,7 +717,7 @@ local function playerUpdate()
 
 	-- Speed
 	if key(64) then plr.speed = 0.5 else plr.speed = 0.1 end
-	if key(65) then plr.speed = 0.01 end
+	if key(65) then plr.speed = 0.001 end
 
 
 	camVec = camVec:normalize()
@@ -776,6 +777,265 @@ function TIC()
 end
 
 -- <TILES>
+-- 000:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 001:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 002:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 003:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 004:8888888880099009800990098999999989999999800990098009900989999999
+-- 005:8888888890099009900990099999999999999999900990099009900999999999
+-- 006:8888888890099009900990099999999999999999900990099009900999999999
+-- 007:8888888890099008900990089999999899999998900990089009900899999998
+-- 008:7777777770066006700660067666666676666666700660067006600676666666
+-- 009:7777777760066006600660066666666666666666600660066006600666666666
+-- 010:7777777760066006600660066666666666666666600660066006600666666666
+-- 011:7777777760066007600660076666666766666667600660076006600766666667
+-- 012:1111111110022002100220021222222212222222100220021002200212222222
+-- 013:1111111120022002200220022222222222222222200220022002200222222222
+-- 014:1111111120022002200220022222222222222222200220022002200222222222
+-- 015:1111111120022001200220012222222122222221200220012002200122222221
+-- 016:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 017:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 018:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 019:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 020:8999999980099009800990098999999989999999800990098009900989999999
+-- 021:9999999990099009900990099999999999999999900990099009900999999999
+-- 022:9999999990099009900990099999999999999999900990099009900999999999
+-- 023:9999999890099008900990089999999899999998900990089009900899999998
+-- 024:7666666670066006700660067666666676666666700660067006600676666666
+-- 025:6666666660066006600660066666666666666666600660066006600666666666
+-- 026:6666666660066006600660066666666666666666600660066006600666666666
+-- 027:6666666760066007600660076666666766666667600660076006600766666667
+-- 028:1222222210022002100220021222222212222222100220021002200212222222
+-- 029:2222222220022002200220022222222222222222200220022002200222222222
+-- 030:2222222220022002200220022222222222222222200220022002200222222222
+-- 031:2222222120022001200220012222222122222221200220012002200122222221
+-- 032:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 033:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 034:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 035:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 036:8999999980099009800990098999999989999999800990098009900989999999
+-- 037:9999999990099009900990099999999999999999900990099009900999999999
+-- 038:9999999990099009900990099999999999999999900990099009900999999999
+-- 039:9999999890099008900990089999999899999998900990089009900899999998
+-- 040:7666666670066006700660067666666676666666700660067006600676666666
+-- 041:6666666660066006600660066666666666666666600660066006600666666666
+-- 042:6666666660066006600660066666666666666666600660066006600666666666
+-- 043:6666666760066007600660076666666766666667600660076006600766666667
+-- 044:1222222210022002100220021222222212222222100220021002200212222222
+-- 045:2222222220022002200220022222222222222222200220022002200222222222
+-- 046:2222222220022002200220022222222222222222200220022002200222222222
+-- 047:2222222120022001200220012222222122222221200220012002200122222221
+-- 048:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 049:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 050:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 051:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 052:8999999980099009800990098999999989999999800990098009900988888888
+-- 053:9999999990099009900990099999999999999999900990099009900988888888
+-- 054:9999999990099009900990099999999999999999900990099009900988888888
+-- 055:9999999890099008900990089999999899999998900990089009900888888888
+-- 056:7666666670066006700660067666666676666666700660067006600677777777
+-- 057:6666666660066006600660066666666666666666600660066006600677777777
+-- 058:6666666660066006600660066666666666666666600660066006600677777777
+-- 059:6666666760066007600660076666666766666667600660076006600777777777
+-- 060:1222222210022002100220021222222212222222100220021002200211111111
+-- 061:2222222220022002200220022222222222222222200220022002200211111111
+-- 062:2222222220022002200220022222222222222222200220022002200211111111
+-- 063:2222222120022001200220012222222122222221200220012002200111111111
+-- 064:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 065:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 066:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 067:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 068:9999999990088008900880089888888898888888900880089008800898888888
+-- 069:9999999980088008800880088888888888888888800880088008800888888888
+-- 070:9999999980088008800880088888888888888888800880088008800888888888
+-- 071:9999999980088009800880098888888988888889800880098008800988888889
+-- 072:6666666660077007600770076777777767777777600770076007700767777777
+-- 073:6666666670077007700770077777777777777777700770077007700777777777
+-- 074:6666666670077007700770077777777777777777700770077007700777777777
+-- 075:6666666670077006700770067777777677777776700770067007700677777776
+-- 076:2222222220011001200110012111111121111111200110012001100121111111
+-- 077:2222222210011001100110011111111111111111100110011001100111111111
+-- 078:2222222210011001100110011111111111111111100110011001100111111111
+-- 079:2222222210011002100110021111111211111112100110021001100211111112
+-- 080:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 081:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 082:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 083:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 084:9888888890088008900880089888888898888888900880089008800898888888
+-- 085:8888888880088008800880088888888888888888800880088008800888888888
+-- 086:8888888880088008800880088888888888888888800880088008800888888888
+-- 087:8888888980088009800880098888888988888889800880098008800988888889
+-- 088:6777777760077007600770076777777767777777600770076007700767777777
+-- 089:7777777770077007700770077777777777777777700770077007700777777777
+-- 090:7777777770077007700770077777777777777777700770077007700777777777
+-- 091:7777777670077006700770067777777677777776700770067007700677777776
+-- 092:2111111120011001200110012111111121111111200110012001100121111111
+-- 093:1111111110011001100110011111111111111111100110011001100111111111
+-- 094:1111111110011001100110011111111111111111100110011001100111111111
+-- 095:1111111210011002100110021111111211111112100110021001100211111112
+-- 096:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 097:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 098:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 099:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 100:9888888890088008900880089888888898888888900880089008800898888888
+-- 101:8888888880088008800880088888888888888888800880088008800888888888
+-- 102:8888888880088008800880088888888888888888800880088008800888888888
+-- 103:8888888980088009800880098888888988888889800880098008800988888889
+-- 104:6777777760077007600770076777777767777777600770076007700767777777
+-- 105:7777777770077007700770077777777777777777700770077007700777777777
+-- 106:7777777770077007700770077777777777777777700770077007700777777777
+-- 107:7777777670077006700770067777777677777776700770067007700677777776
+-- 108:2111111120011001200110012111111121111111200110012001100121111111
+-- 109:1111111110011001100110011111111111111111100110011001100111111111
+-- 110:1111111110011001100110011111111111111111100110011001100111111111
+-- 111:1111111210011002100110021111111211111112100110021001100211111112
+-- 112:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 113:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 114:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 115:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 116:9888888890088008900880089888888898888888900880089008800899999999
+-- 117:8888888880088008800880088888888888888888800880088008800899999999
+-- 118:8888888880088008800880088888888888888888800880088008800899999999
+-- 119:8888888980088009800880098888888988888889800880098008800999999999
+-- 120:6777777760077007600770076777777767777777600770076007700766666666
+-- 121:7777777770077007700770077777777777777777700770077007700766666666
+-- 122:7777777770077007700770077777777777777777700770077007700766666666
+-- 123:7777777670077006700770067777777677777776700770067007700666666666
+-- 124:2111111120011001200110012111111121111111200110012001100122222222
+-- 125:1111111110011001100110011111111111111111100110011001100122222222
+-- 126:1111111110011001100110011111111111111111100110011001100122222222
+-- 127:1111111210011002100110021111111211111112100110021001100222222222
+-- 128:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 129:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 130:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 131:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 132:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 133:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 134:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 135:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 136:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 137:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 138:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 139:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 140:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 141:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 142:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 143:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 144:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 145:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 146:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 147:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 148:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 149:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 150:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 151:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 152:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 153:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 154:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 155:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 156:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 157:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 158:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 159:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 160:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 161:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 162:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 163:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 164:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 165:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 166:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 167:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 168:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 169:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 170:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 171:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 172:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 173:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 174:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 175:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 176:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 177:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 178:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 179:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 180:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 181:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 182:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 183:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 184:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 185:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 186:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 187:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 188:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 189:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 190:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 191:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 192:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 193:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 194:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 195:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 196:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 197:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 198:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 199:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 200:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 201:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 202:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 203:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 204:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 205:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 206:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 207:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 208:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 209:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 210:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 211:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 212:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 213:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 214:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 215:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 216:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 217:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 218:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 219:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 220:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 221:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 222:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 223:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 224:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 225:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 226:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 227:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 228:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 229:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 230:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 231:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 232:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 233:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 234:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 235:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 236:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 237:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 238:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 239:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 240:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 241:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 242:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 243:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 244:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 245:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 246:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 247:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 248:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 249:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 250:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 251:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 252:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 253:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 254:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- 255:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-- </TILES>
+
+-- <SPRITES>
 -- 000:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -- 001:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -- 002:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -1032,7 +1292,7 @@ end
 -- 253:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -- 254:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -- 255:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
--- </TILES>
+-- </SPRITES>
 
 -- <WAVES>
 -- 000:00000000ffffffff00000000ffffffff
